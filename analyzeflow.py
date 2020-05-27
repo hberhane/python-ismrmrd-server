@@ -200,7 +200,15 @@ def process_image(images, mag, config, metadata):
             k,kk = eddy(datamag,flows)
             l, new_flow = noise(k,kk)
             mm = segment(l)
-            io.savemat('new_flow.mat', {'new_flow': new_flow})
+            hh = (flows.shape[0] - new_flow.shape[0])//2
+            h = flows.shape[0]
+            ww = (flows.shape[1] - new_flow.shape[1])//2
+            w = flows.shape[1]
+            flows[hh:h-hh,ww:w-ww,...] = new_flow
+            m = np.zeros([flows.shape[0], flows.shape[1], flows.shape[2]])
+            m[hh:h-hh,ww:w-ww,...] = mm
+            io.savemat('aorta_mask_struct.mat',{'seg':m})
+            io.savemat('new_flow.mat', {'new_flow': flows})
         #if item.image_type is ismrmrd.IMTYPE_MAGNITUDE:
             
             

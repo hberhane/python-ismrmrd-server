@@ -1,5 +1,5 @@
 import tensorflow as tf
-from dense_unet_model_2 import Unet2
+from dense_unet_model import Unet
 import scipy.io as io
 import os
 import numpy as np
@@ -17,7 +17,7 @@ def segment(image):
 	input_3p = tf.placeholder(tf.float32, shape=[1, 160,96,None, 1])
 	#input_3p = tf.placeholder(tf.float32, shape=[1, 160,130,None, 1])
 
-	logits_3 = Unet2(x = input_3p, training=flag).model
+	logits_3 = Unet(x = input_3p, training=flag).model
 
 	#logits_2 = Unet2(x = input_2p, training=flag).model
 	llogits_3 = tf.nn.softmax(logits_3)
@@ -43,6 +43,6 @@ def segment(image):
 	#mrStruct['mrStruct']['dim4'] = 'unused'
 	#mrStruct['mrStruct']['dim5'] = 'unused'
 
-	io.savemat('aorta_mask_struct.mat',{'seg':mask3})
+	
 	return mask3
 

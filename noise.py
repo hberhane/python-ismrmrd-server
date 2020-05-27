@@ -7,13 +7,7 @@ import numpy as np
 def noise(image, new_flow):
 	k = np.squeeze(image[0])
 	print(k.shape)
-	#input_4 = tf.convert_to_tensor(k, dtype=tf.float32)
-	#input_4 = input_[32:160,...]
-	#input_4 = tf.image.resize_image_with_crop_or_pad(input_4,128,96)
-	#input_4 = (input_4 - tf.reduce_min(input_4))/(tf.reduce_max(input_4) - tf.reduce_min(input_4))
-	#input_4 = tf.expand_dims(input_4, dim=0)
-	#input_4 = tf.expand_dims(input_4, dim=4)
-	#with graph.as_default():
+
 	input_4 = tf.convert_to_tensor(k, dtype=tf.float32)
 	input_4 = tf.expand_dims(input_4, dim=0)
 	#input_4 = tf.expand_dims(input_4, dim=4)
@@ -50,17 +44,8 @@ def noise(image, new_flow):
 	mask2 = np.expand_dims(mask2,axis=4)
 
 	final_flow = np.multiply(new_flow, mask2)
-	#mrStruct1 = flows['mrStruct']
-	#mrStruct['dataAy'][0,0] = final_flow
-
-	#mag = mags['mrStruct']['dataAy'][0,0]
-	#mag = mag[h1:HH-h1,w1:WW-w1,...]
-	#mrStruct = mags['mrStruct']
-	#mrStruct['dataAy'][0,0] = mag
+	
 
 	print(final_flow.shape)
-	#io.savemat('MK/vel_struct.mat',{'mrStruct':mrStruct})
-	#io.savemat('MK/mag_struct.mat',{'mrStruct':mrStruct})
-	#io.savemat('MK/noise_mask.mat',{'noise':mask2})
-	#del mrStruct1
+
 	return image, final_flow
