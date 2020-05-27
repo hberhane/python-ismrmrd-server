@@ -7,6 +7,11 @@ import numpy as np
 import numpy.fft as fft
 import base64
 import re
+import scipy.io as io
+from eddy import eddy
+from noise import noise
+from segment import segment
+
 
 # Folder for debug output files
 debugFolder = "/tmp/share/debug"
@@ -34,6 +39,7 @@ def process(connection, config, metadata):
 
     # Continuously parse incoming data parsed from MRD messages
     imgGroup = []
+    magGroup = []
     waveformGroup = []
     try:
         for item in connection:
@@ -48,6 +54,8 @@ def process(connection, config, metadata):
                 # Only process phase images
                 if item.image_type is ismrmrd.IMTYPE_PHASE:
                     imgGroup.append(item)
+                elif item.image_type is ismrmrd.IMTYPE_MAGNITUDE:
+                    magGroup.append(item)
                 else:
                     # Group these images into separate series (to be fixed in FIRE later)
                     if meta['ImageType'] == 'ORIGINAL\\PRIMARY\\T1\\NONE':
@@ -88,9 +96,9 @@ def process(connection, config, metadata):
         # happen if the trigger condition for these groups are not met.
         # This is also a fallback for handling image data, as the last
         # image in a series is typically not separately flagged.
-        if len(imgGroup) > 0:
+        if len(imgGroup) > 0 and len(magGroup)>0:
             logging.info("Processing a group of images (untriggered)")
-            image = process_image(imgGroup, config, metadata)
+            image = process_image(imgGroup, magGroup, config, metadata)
             logging.debug("Sending images to client")
             connection.send_image(image)
             imgGroup = []
@@ -98,7 +106,7 @@ def process(connection, config, metadata):
     finally:
         connection.send_close()
 
-def process_image(images, config, metadata):
+def process_image(images, mag, config, metadata):
     # Create folder, if necessary
     if not os.path.exists(debugFolder):
         os.makedirs(debugFolder)
@@ -114,6 +122,8 @@ def process_image(images, config, metadata):
     if 'IceMiniHead' in tmpMeta:
         logging.debug("IceMiniHead[0]: %s", base64.b64decode(tmpMeta['IceMiniHead']).decode('utf-8'))
 
+    slices = [img.slice for img in mag]
+    phases = [img.phase for img in mag]
     slice = [img.slice for img in images]
     phase = [img.phase for img in images]
 
@@ -125,18 +135,28 @@ def process_image(images, config, metadata):
     # absolute series number isn't used and can be arbitrary
     last_series = 10
     imagesOut = []
+    #if item.image_type is ismrmrd.IMTYPE_PHASE:
+    datamag = np.zeros((mag[0].data.shape[2], mag[0].data.shape[3], max(
+        slices)+1, max(phases)+1), mag[0].data.dtype)
+    head = [[None]*(max(phases)+1) for _ in range(max(slices)+1)]
+    meta2 = [[None]*(max(phases)+1) for _ in range(max(slices)+1)]
+
+    for imgm, sli, phs in zip(mag, slices, phases):
+        #if ismrmrd.Meta.deserialize(img.attribute_string)['FlowDirDisplay'] == venc_dir:
+        datamag[:, :, sli, phs] = imgm.data
+
     for venc_dir in unique_venc_dir:
         # data array has dimensions [x y sli phs]
         # info lists has dimensions [sli phs]
         data = np.zeros((images[0].data.shape[2], images[0].data.shape[3], max(slice)+1, max(phase)+1), images[0].data.dtype)
         head = [[None]*(max(phase)+1) for _ in range(max(slice)+1)]
-        meta = [[None]*(max(phase)+1) for _ in range(max(slice)+1)]
+        meta2 = [[None]*(max(phase)+1) for _ in range(max(slice)+1)]
 
         for img, sli, phs in zip(images, slice, phase):
             if ismrmrd.Meta.deserialize(img.attribute_string)['FlowDirDisplay'] == venc_dir:
                 data[:,:,sli,phs] = img.data
                 head[sli][phs]    = img.getHead()
-                meta[sli][phs]    = ismrmrd.Meta.deserialize(img.attribute_string)
+                meta2[sli][phs]    = ismrmrd.Meta.deserialize(img.attribute_string)
 
         logging.debug("Phase data with venc encoding %s is size %s" % (venc_dir, data.shape,))
         np.save(debugFolder + "/" + "data_" + venc_dir + ".npy", data)
@@ -151,6 +171,40 @@ def process_image(images, config, metadata):
         # Normalize and convert to int16
         data_masked = (data_masked.astype(np.float64) - 2048)*32767/2048
         data_masked = np.around(data_masked).astype(np.int16)
+        if venc_dir == unique_venc_dir[0]:
+            gh = np.zeros([data_masked.shape[0], data_masked.shape[1], data_masked.shape[2], 3, data_masked.shape[3]])
+            gh[..., 0, :] = data
+        elif venc_dir == unique_venc_dir[1]:
+            gh[..., 1, :] = data
+        elif venc_dir == unique_venc_dir[2]:
+            gh[..., 2, :] = data
+            meta = ismrmrd.Meta.deserialize(img.attribute_string)
+            venc = meta['FlowVelocity']
+            venc = int(venc)
+            phaseRange = 4096
+
+            tmpMask1 = np.ones(gh.shape)
+            #print(tmpMask1.shape)
+            tmpMask1 = tmpMask1*venc/100
+            tmpMask2 = tmpMask1
+
+            tmpMask1 = tmpMask1/(phaseRange/2)
+            flows = gh*tmpMask1
+            flows = flows - tmpMask2
+            flows = np.transpose(flows, (1,0,2,3,4))
+            flows = np.flipud(flows)
+            datamag = np.transpose(datamag, (1, 0, 2, 3))
+            datamag = np.flipud(datamag)
+            io.savemat('mag.mat', {'mag': datamag})
+            io.savemat('flow.mat', {'flow': flows})
+            k,kk = eddy(datamag,flows)
+            l, new_flow = noise(k,kk)
+            mm = segment(l)
+            io.savemat('new_flow.mat', {'new_flow': new_flow})
+        #if item.image_type is ismrmrd.IMTYPE_MAGNITUDE:
+            
+            
+            
 
         # Re-slice back into 2D images
         for sli in range(data_masked.shape[2]):
@@ -166,7 +220,7 @@ def process_image(images, config, metadata):
                 tmpImg.setHead(tmpHead)
 
                 # Set ISMRMRD Meta Attributes
-                tmpMeta = meta[sli][phs]
+                tmpMeta = meta2[sli][phs]
                 tmpMeta['DataRole']               = 'Image'
                 tmpMeta['ImageProcessingHistory'] = ['FIRE', 'PYTHON']
                 tmpMeta['WindowCenter']           = '16384'
