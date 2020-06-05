@@ -1,4 +1,5 @@
 
+import matplotlib.pyplot as plt
 import ismrmrd
 import os
 import itertools
@@ -11,7 +12,8 @@ import scipy.io as io
 from eddy import eddy
 from noise import noise
 from segment import segment
-
+import matlab.engine
+from aliasing import alias
 
 # Folder for debug output files
 debugFolder = "/tmp/share/debug"
@@ -199,6 +201,7 @@ def process_image(images, mag, config, metadata):
             io.savemat('flow.mat', {'flow': flows})
             k,kk = eddy(datamag,flows)
             l, new_flow = noise(k,kk)
+            new_flow = alias(new_flow, venc)
             mm = segment(l)
             hh = (flows.shape[0] - new_flow.shape[0])//2
             h = flows.shape[0]
@@ -209,7 +212,32 @@ def process_image(images, mag, config, metadata):
             m[hh:h-hh,ww:w-ww,...] = mm
             io.savemat('aorta_mask_struct.mat',{'seg':m})
             io.savemat('new_flow.mat', {'new_flow': flows})
-        #if item.image_type is ismrmrd.IMTYPE_MAGNITUDE:
+            m = np.expand_dims(m,axis=3)
+            m = np.expand_dims(m,axis=4)
+            fflow = flows
+            fflow = np.amax(fflow, axis=3)
+            #fflow = np.amax(fflow,axis=2)
+            
+            ff = m
+            datamag = np.mean(datamag,axis=3)
+            datamag = np.amax(datamag,axis=2)
+            eng = matlab.engine.start_matlab()
+            for i in range(int(fflow.shape[3])):
+                fflows = fflow[...,i]
+                if i == 0:
+                    ff = matlab.double(ff.tolist())
+                    datamag = matlab.double(datamag.tolist())
+                fflows = matlab.double(fflows.tolist())
+                
+                jj = eng.mips(ff, fflows, datamag, i)
+            
+            print(jj)
+            #eng.close()
+            #plt.imshow(ff,cmap='seismic')
+            #plt.colorbar()
+            #plt.show()
+            #plt.savefig('test.png')
+
             
             
             
