@@ -167,7 +167,7 @@ def process_image(images, mag, config, metadata):
         threshold = 250
         data_meandiff = np.mean(np.abs(np.diff(data,3)),3)
         data_masked = data
-        data_masked[(data_meandiff > threshold)] = 2048
+        #data_masked[(data_meandiff > threshold)] = 2048
         np.save(debugFolder + "/" + "data_" + venc_dir + ".npy", data_masked)
 
         # Normalize and convert to int16
