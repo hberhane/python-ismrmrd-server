@@ -12,8 +12,9 @@ import scipy.io as io
 from eddy import eddy
 from noise import noise
 from segment import segment
-import matlab.engine
+#import matlab.engine
 from aliasing import alias
+from makeMIP import makeMIP
 
 # Folder for debug output files
 debugFolder = "/tmp/share/debug"
@@ -221,6 +222,11 @@ def process_image(images, mag, config, metadata):
             ff = m
             datamag = np.mean(datamag,axis=3)
             datamag = np.amax(datamag,axis=2)
+            
+            # Make the mip image
+            mipimage = makeMIP(fflow, m)
+            
+            """
             eng = matlab.engine.start_matlab()
             for i in range(int(fflow.shape[3])):
                 fflows = fflow[...,i]
@@ -232,6 +238,7 @@ def process_image(images, mag, config, metadata):
                 jj = eng.mips(ff, fflows, datamag, i)
             
             print(jj)
+            """
             #eng.close()
             #plt.imshow(ff,cmap='seismic')
             #plt.colorbar()
