@@ -14,7 +14,8 @@ from noise import noise
 from segment import segment
 #import matlab.engine
 from aliasing import alias
-from makeMIP import makeMIP
+#from makeMIP import makeMIP
+from mipTesting import mipTesting
 
 # Folder for debug output files
 debugFolder = "/tmp/share/debug"
@@ -202,7 +203,7 @@ def process_image(images, mag, config, metadata):
             io.savemat('flow.mat', {'flow': flows})
             k,kk = eddy(datamag,flows)
             l, new_flow = noise(k,kk)
-            new_flow = alias(new_flow, venc)
+            #new_flow = alias(new_flow, venc)
             mm = segment(l)
             hh = (flows.shape[0] - new_flow.shape[0])//2
             h = flows.shape[0]
@@ -214,17 +215,57 @@ def process_image(images, mag, config, metadata):
             io.savemat('aorta_mask_struct.mat',{'seg':m})
             io.savemat('new_flow.mat', {'new_flow': flows})
             m = np.expand_dims(m,axis=3)
-            m = np.expand_dims(m,axis=4)
+            #m = np.expand_dims(m,axis=4)
+            #masked = m
+            
             fflow = flows
             fflow = np.amax(fflow, axis=3)
+            fflow = np.multiply(fflow, m)
+            masked = fflow
             #fflow = np.amax(fflow,axis=2)
+            #mip = np.zeros([masked.shape[0], masked.shape[1], masked.shape[3]])
+
+
+            #mipmag = np.zeros([masked.shape[0], masked.shape[1], masked.shape[3]])
+            #datamag = np.mean(datamag,axis=3)
+            #datamag = np.amax(datamag,axis=2)
+            mip = mipTesting(m,flows,datamag)
             
+            """
+            for tt in range(int(masked.shape[3])):
+                mip[:, :, tt] = np.max(np.squeeze(masked[:, :, :, tt]), axis=2)
+                mipmag[:, :, tt] = np.max(np.squeeze(datamag[:, :, :, tt]), axis=2)
             ff = m
-            datamag = np.mean(datamag,axis=3)
-            datamag = np.amax(datamag,axis=2)
+            
             
             # Make the mip image
-            mipimage = makeMIP(fflow, m)
+            #mipimage = makeMIP(fflow, m, datamag)
+            mip[(mip > 1.5)] = 1.5
+
+
+            mip[(mip < 0)] = 0
+            mip = 2048 + (mip / 1.5)*2047
+            mipmag = (mipmag - np.amin(mipmag))
+            mipmag = mipmag / np.amax(mipmag)
+            mipmag = 2047 * mipmag
+
+            # Superimpose the images
+            mipimage = mipmag
+            mipimage[(mip > 0)] = mip[(mip > 0)]
+            mipimage = mipimage.astype(int)
+            io.savemat("thing.mat",{"thing":mipimage})
+
+
+            #Uncomment to display
+            """
+            """
+            fig = plt.figure()
+            for tt in range(int(mipimage.shape[2])):
+                s = plt.imshow(np.squeeze(mipimage[:, :, tt]))
+                ax = plt.gca()
+                ax.axis("off")
+                plt.show()
+            """
             
             """
             eng = matlab.engine.start_matlab()
