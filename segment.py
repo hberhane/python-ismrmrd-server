@@ -31,7 +31,7 @@ def segment(image):
 		#sesss.run(tf.local_variables_initializer())
 		s = sesss.run([input_5])
 		print(s[0].shape)
-		saver.restore(sesss, tf.train.get_checkpoint_state("/opt/codes/python-ismrmrd-server/pre-trained").model_checkpoint_path)
+		saver.restore(sesss, tf.train.get_checkpoint_state("./pre-trained").model_checkpoint_path)
 		h , seg4 = sesss.run([logits_3, llogits_3], feed_dict={input_3p:s[0], flag: True})
 	sesss.close()
 	

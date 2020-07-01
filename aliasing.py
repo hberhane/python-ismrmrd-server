@@ -113,7 +113,7 @@ def alias(flow, venc):
   return mask
 
 def feed_data(path):
-    data_path = '/opt/codes/python-ismrmrd-server/'+path+'.tfrecords'  # address to save the hdf5 file
+    data_path = './'+path+'.tfrecords'  # address to save the hdf5 file
     feature = {'test/image': tf.FixedLenFeature([], tf.string),
                #'test/label': tf.FixedLenFeature([], tf.string),
                'test/depth': tf.FixedLenFeature([], tf.int64),
