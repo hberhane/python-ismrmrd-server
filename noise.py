@@ -31,7 +31,7 @@ def noise(image, new_flow):
 		#sesss.run(tf.local_variables_initializer())
 		s = sesss.run([input_4])
 		print(s[0].shape)
-		saver.restore(sesss, tf.train.get_checkpoint_state("./new_noise").model_checkpoint_path)
+		saver.restore(sesss, tf.train.get_checkpoint_state("/opt/codes/python-ismrmrd-server/new_noise").model_checkpoint_path)
 		h , seg3 = sesss.run([logits_2, llogits_2], feed_dict={input_2p:s[0], flag: True})
 	sesss.close()
 	tf.keras.backend.clear_session()

@@ -82,7 +82,7 @@ def alias(flow, venc):
 
   writer.close()
 
-  path = "alis_og_t"
+  #path = "alis_og_t"
   #print('./'+path+'.tfrecords')
   #print("C:/Users/haben/Documents/aliasing/"+path)
 
@@ -113,7 +113,7 @@ def alias(flow, venc):
   return mask
 
 def feed_data(path):
-    data_path = './'+path+'.tfrecords'  # address to save the hdf5 file
+    data_path = '/opt/codes/python-ismrmrd-server/'+path+'.tfrecords'  # address to save the hdf5 file
     feature = {'test/image': tf.FixedLenFeature([], tf.string),
                #'test/label': tf.FixedLenFeature([], tf.string),
                'test/depth': tf.FixedLenFeature([], tf.int64),
@@ -162,7 +162,7 @@ def aliasing(path1,path2, venc):
 	image_batch, images, phase = feed_data(path = path1)
 	
 	flag = tf.placeholder(tf.bool)
-	g = tf.Graph()
+	#g = tf.Graph()
 	logits_1 = Unet(x = input_1p, training=flag).model
 	saver1 = tf.train.Saver()
 
@@ -184,7 +184,7 @@ def aliasing(path1,path2, venc):
 		for i in range(int(phases)):
 			print(i)
 			image,alias = sess.run([image_batch,images])#, input_2, input_3])
-			seg , h = sess.run([logits_1, llogits_1], feed_dict={input_1p: image, flag: True})
+			_ , h = sess.run([logits_1, llogits_1], feed_dict={input_1p: image, flag: True})
 			h = np.squeeze(h)
 			alias = np.squeeze(alias)
 			new_alis = alias
