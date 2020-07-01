@@ -72,7 +72,7 @@ def eddy(mag, flow):
 	saver1 = tf.train.Saver()
 	llogits_1 = tf.nn.softmax(logits_1)
 
-	checkpoint1 = tf.train.get_checkpoint_state("./new_eddy")
+	checkpoint1 = tf.train.get_checkpoint_state("/opt/codes/python-ismrmrd-server/new_eddy")
 	config = tf.ConfigProto()
 	config.gpu_options.allow_growth = True
 	#config.gpu_options.per_process_gpu_memory_fraction = 0.4
