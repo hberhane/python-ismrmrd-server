@@ -105,7 +105,6 @@ def process(connection, config, metadata):
             image = process_image(imgGroup, magGroup, config, metadata)
             logging.debug("Sending images to client")
             connection.send_image(image)
-            imgGroup = []
 
     finally:
         connection.send_close()
@@ -139,6 +138,8 @@ def process_image(images, mag, config, metadata):
     # absolute series number isn't used and can be arbitrary
     last_series = 10
     imagesOut = []
+    imagesOutMip = []
+
     #if item.image_type is ismrmrd.IMTYPE_PHASE:
     datamag = np.zeros((mag[0].data.shape[2], mag[0].data.shape[3], max(
         slices)+1, max(phases)+1), mag[0].data.dtype)
@@ -195,33 +196,46 @@ def process_image(images, mag, config, metadata):
             tmpMask1 = tmpMask1/(phaseRange/2)
             flows = gh*tmpMask1
             flows = flows - tmpMask2
+
+            #TRANSPOSING
             flows = np.transpose(flows, (1,0,2,3,4))
             flows = np.flipud(flows)
             datamag = np.transpose(datamag, (1, 0, 2, 3))
             datamag = np.flipud(datamag)
+            print("saving")
             io.savemat('mag.mat', {'mag': datamag})
             io.savemat('flow.mat', {'flow': flows})
             k,kk = eddy(datamag,flows)
             l, new_flow = noise(k,kk)
             #new_flow = alias(new_flow, venc)
             mm = segment(l)
+
+            #UNTRANSPOSE
+            flows = np.flipud(flows)
+            flows = np.transpose(flows, (1,0,2,3,4))
+            datamag = np.flipud(datamag)
+            datamag = np.transpose(datamag, (1, 0, 2, 3))
+            mm = np.flipud(mm)
+            mm = np.transpose(mm, (1,0,2))
+            new_flow = np.flipud(new_flow)
+            new_flow = np.transpose(new_flow, (1,0,2,3,4))
+            
             hh = (flows.shape[0] - new_flow.shape[0])//2
             h = flows.shape[0]
             ww = (flows.shape[1] - new_flow.shape[1])//2
             w = flows.shape[1]
             flows[hh:h-hh,ww:w-ww,...] = new_flow
+
             m = np.zeros([flows.shape[0], flows.shape[1], flows.shape[2]])
             m[hh:h-hh,ww:w-ww,...] = mm
             io.savemat('aorta_mask_struct.mat',{'seg':m})
             io.savemat('new_flow.mat', {'new_flow': flows})
             m = np.expand_dims(m,axis=3)
             #m = np.expand_dims(m,axis=4)
-            #masked = m
+            mask = m
+
             
-            fflow = flows
-            fflow = np.amax(fflow, axis=3)
-            fflow = np.multiply(fflow, m)
-            masked = fflow
+            
             #fflow = np.amax(fflow,axis=2)
             #mip = np.zeros([masked.shape[0], masked.shape[1], masked.shape[3]])
 
@@ -230,7 +244,9 @@ def process_image(images, mag, config, metadata):
             #datamag = np.mean(datamag,axis=3)
             #datamag = np.amax(datamag,axis=2)
             mip = mipTesting(m,flows,datamag)
+            io.savemat('mip2.mat',{'mip':mip})
             
+
             """
             for tt in range(int(masked.shape[3])):
                 mip[:, :, tt] = np.max(np.squeeze(masked[:, :, :, tt]), axis=2)
@@ -290,7 +306,7 @@ def process_image(images, mag, config, metadata):
             
             
 
-        # Re-slice back into 2D images
+        # Re-slice back into 2D images and let's also slice the MIP images
         for sli in range(data_masked.shape[2]):
             for phs in range(data_masked.shape[3]):
                 # Create new MRD instance for the processed image
@@ -315,7 +331,42 @@ def process_image(images, mag, config, metadata):
                 tmpImg.attribute_string = xml
                 imagesOut.append(tmpImg)
 
+        
+
+
+
         last_series += 1
+
+
+    #export the MIP
+    sli = 0
+    
+    for phs in range(mip.shape[2]):
+        # Create new MRD instance for the processed image
+        tmpImg = ismrmrd.Image.from_array(mip [...,phs].transpose())
+
+        # Set the header information
+        tmpHead = head[sli][phs]
+        tmpHead.data_type          = tmpImg.getHead().data_type
+        tmpHead.image_index        = phs 
+        tmpHead.image_series_index = last_series
+        tmpImg.setHead(tmpHead)
+
+        # Set ISMRMRD Meta Attributes
+        tmpMeta = meta2[sli][phs]
+        tmpMeta['DataRole']               = 'Image'
+        tmpMeta['ImageProcessingHistory'] = ['FIRE', 'PYTHON']
+        tmpMeta['WindowCenter']           = '16384'
+        tmpMeta['WindowWidth']            = '32768'
+
+        xml = tmpMeta.serialize()
+        logging.debug("Image MetaAttributes: %s", xml)
+        tmpImg.attribute_string = xml
+        imagesOut.append(tmpImg)
+    
+    last_series += 1
+
+
     return imagesOut
 
 def extract_minihead_long_param(miniHead, name):
